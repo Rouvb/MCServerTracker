@@ -1,5 +1,5 @@
 # MCServerTracker
-A lightweight Python tool that monitors Minecraft server player activity and sends **average** and **peak online player counts** to a Discord webhook daily.
+A lightweight tool that monitors Minecraft server player activity and sends **average** and **peak online player counts** to a Discord webhook daily.
 ## 📌 Features
 - ⛏️ Tracks real-time player data from Minecraft servers
 - 📊 Aggregates average and peak player counts
@@ -15,7 +15,7 @@ Create and edit `config.json` in the root directory.
   "tracking_time": 60
 }
 ```
-## 🚀 Installation (Virtual Environment)
+## 🚀 Installation
 ### Using Virtual Environment
 #### Linux / macOS
 ```
