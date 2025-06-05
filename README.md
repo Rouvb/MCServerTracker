@@ -12,7 +12,7 @@ Create and edit `config.json` in the root directory.
 {
   "server_ips": ["mc.example.com", "123.45.67.89"],
   "webhook_url": "https://discord.com/api/webhooks/...",
-  "tracking_time": 300  // seconds between checks
+  "tracking_time": 60
 }
 ```
 ## 🚀 Installation (Virtual Environment)
