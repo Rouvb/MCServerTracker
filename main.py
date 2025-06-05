@@ -73,9 +73,9 @@ def send_webhook(server_ip: str) -> None:
     webhook = DiscordWebhook(url=webhook_url, username="Server Tracker")
 
     description = (
-        f"Server Data: {server_ip}\n"
-        f"> Average Online: {average_online}\n"
-        f"> Peak Online: {peak_online}\n"
+        f"IP: `{server_ip}`\n"
+        f"> Average Online: `{average_online}`\n"
+        f"> Peak Online: `{peak_online}`\n"
     )
     embed = DiscordEmbed(title="Server Tracker", description=description, color=0x000000)
     embed.set_footer(text=f"{server_ip}")
@@ -97,8 +97,10 @@ def server_data_task() -> None:
 
 def webhook_task() -> None:
     while True:
+        logger.info("Checking Webhook Task...")
         current_time = datetime.datetime.now()
-        if current_time.hour == 00 and current_time.minute == 00:
+        if current_time.hour == 0 and current_time.minute == 0:
+            logger.info("Sending Webhooks...")
             server_ips = load_config()["server_ips"]
             for server_ip in server_ips:
                 send_webhook(server_ip=server_ip)
@@ -106,10 +108,10 @@ def webhook_task() -> None:
         time.sleep(60)
 
 def main() -> None:
-    server_task = threading.Thread(target=server_data_task())
+    server_task = threading.Thread(target=server_data_task)
     server_task.start()
-    send_repost_task = threading.Thread(target=webhook_task())
-    send_repost_task.start()
+    report_task = threading.Thread(target=webhook_task)
+    report_task.start()
 
 if __name__ == "__main__":
     main()
