@@ -3,13 +3,14 @@ import json
 import logging
 import threading
 import time
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen, Request
 
 from discord_webhook import DiscordWebhook, DiscordEmbed
 
 from config import load_config
 
-# Config
+# Online count cache data
 online_count = {}
 
 # Set up a basic logger
@@ -33,13 +34,36 @@ def update_online_count(server_ip: str, online: int) -> None:
 
 def get_server_data(server_ip: str) -> None:
     # Get server data from mcsrvstat.us api
+    # To do: add error handler
     logger.info(f"Getting Server Data for {server_ip}...")
     url = f"https://api.mcsrvstat.us/3/{server_ip}"
     request = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    html = urlopen(request)
-    json_data = json.load(html)
-    current_online = json_data["players"]["online"]
-    update_online_count(server_ip=server_ip, online=current_online)
+
+    max_retries = 3
+    retry_delay = 3
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            html = urlopen(request)
+            json_data = json.load(html)
+            current_online = json_data["players"]["online"]
+            update_online_count(server_ip=server_ip, online=current_online)
+            return
+
+        except HTTPError as e:
+            logger.warning(f"HTTP Error {e.code} from {url}: {e.reason}")
+        except URLError as e:
+            logger.warning(f"URL Error from {url}: {e.reason}")
+        except KeyError as e:
+            logger.warning(f"Missing key in JSON: {e}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON Decode Error: {e}")
+        except Exception as e:
+            logger.exception(f"Unexpected error while processing {server_ip}: {e}")
+
+        if attempt < max_retries:
+            logger.info(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
 
 def send_webhook(server_ip: str) -> None:
     average_online = int(sum(online_count[server_ip]) / len(online_count[server_ip]))
@@ -49,6 +73,7 @@ def send_webhook(server_ip: str) -> None:
     webhook = DiscordWebhook(url=webhook_url, username="Server Tracker")
 
     description = (
+        f"Server Data: {server_ip}\n"
         f"> Average Online: {average_online}\n"
         f"> Peak Online: {peak_online}\n"
     )
