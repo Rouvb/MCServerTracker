@@ -1,5 +1,0 @@
-{
-  "webhook_url": "",
-  "server_ips": ["example_serverip1.com", "example_serverip2.com"],
-  "tracking_time": 60
-}
