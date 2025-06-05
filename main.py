@@ -10,8 +10,8 @@ from discord_webhook import DiscordWebhook, DiscordEmbed
 
 from config import load_config
 
-# Online count cache data
-online_count = {}
+# Online player history data
+online_history = {}
 
 # Set up a basic logger
 logger = logging.getLogger(__name__)
@@ -21,21 +21,21 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-def update_online_count(server_ip: str, online: int) -> None:
-    # Append current online count to online_count dict
-    # online_count dict: {"server_ip": []}
-    logger.info(f"Updating Online Count for {server_ip}...")
-    global online_count
-    if not online_count.get(server_ip):
-        online_count[server_ip] = []
-    online_count[server_ip].append(online)
-    peak_online = sorted(online_count[server_ip], reverse=True)[0]
+def record_online_count(server_ip: str, online: int) -> None:
+    # Append current online player count to online_history dict
+    # online_history dict: {"server_ip": []}
+    logger.info(f"Recording online count for {server_ip}...")
+    global online_history
+    if not online_history.get(server_ip):
+        online_history[server_ip] = []
+    online_history[server_ip].append(online)
+    peak_online = sorted(online_history[server_ip], reverse=True)[0]
     logger.info(f"{server_ip} Online Count: {online} (Peak: {peak_online})")
 
-def get_server_data(server_ip: str) -> None:
+def fetch_server_status(server_ip: str) -> None:
     # Get server data from mcsrvstat.us api
     # To do: add error handler
-    logger.info(f"Getting Server Data for {server_ip}...")
+    logger.info(f"Fetching server data for {server_ip}...")
     url = f"https://api.mcsrvstat.us/3/{server_ip}"
     request = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
 
@@ -44,10 +44,10 @@ def get_server_data(server_ip: str) -> None:
 
     for attempt in range(1, max_retries + 1):
         try:
-            html = urlopen(request)
-            json_data = json.load(html)
+            response = urlopen(request)
+            json_data = json.load(response)
             current_online = json_data["players"]["online"]
-            update_online_count(server_ip=server_ip, online=current_online)
+            record_online_count(server_ip=server_ip, online=current_online)
             return
 
         except HTTPError as e:
@@ -66,8 +66,8 @@ def get_server_data(server_ip: str) -> None:
             time.sleep(retry_delay)
 
 def send_webhook(server_ip: str) -> None:
-    average_online = int(sum(online_count[server_ip]) / len(online_count[server_ip]))
-    peak_online = sorted(online_count[server_ip], reverse=True)[0]
+    average_online = int(sum(online_history[server_ip]) / len(online_history[server_ip]))
+    peak_online = sorted(online_history[server_ip], reverse=True)[0]
 
     webhook_url = load_config()["webhook_url"]
     webhook = DiscordWebhook(url=webhook_url, username="Server Tracker")
@@ -83,34 +83,35 @@ def send_webhook(server_ip: str) -> None:
     webhook.add_embed(embed)
     webhook.execute()
 
-def reset_online_count() -> None:
-    global online_count
-    online_count = {}
+def clear_online_history() -> None:
+    global online_history
+    online_history = {}
 
-def server_data_task() -> None:
+def start_tracking_loop() -> None:
     tracking_time = load_config()["tracking_time"]
     server_ips = load_config()["server_ips"]
     while True:
         for server_ip in server_ips:
-            get_server_data(server_ip)
+            fetch_server_status(server_ip)
         time.sleep(tracking_time)
 
-def webhook_task() -> None:
+def daily_report_loop() -> None:
     while True:
-        logger.info("Checking Webhook Task...")
+        logger.info("Checking if it's time to send report...")
         current_time = datetime.datetime.now()
         if current_time.hour == 0 and current_time.minute == 0:
-            logger.info("Sending Webhooks...")
+            logger.info("Sending daily server report...")
             server_ips = load_config()["server_ips"]
             for server_ip in server_ips:
                 send_webhook(server_ip=server_ip)
-            reset_online_count()
+            clear_online_history()
         time.sleep(60)
 
 def main() -> None:
-    server_task = threading.Thread(target=server_data_task)
+    server_task = threading.Thread(target=start_tracking_loop)
     server_task.start()
-    report_task = threading.Thread(target=webhook_task)
+
+    report_task = threading.Thread(target=daily_report_loop)
     report_task.start()
 
 if __name__ == "__main__":
