@@ -1,4 +1,5 @@
-import datetime
+import io
+from datetime import datetime
 import json
 import logging
 import threading
@@ -6,6 +7,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen, Request
 
+import matplotlib.pyplot as plt
 from discord_webhook import DiscordWebhook, DiscordEmbed
 
 from config import load_config
@@ -28,8 +30,9 @@ def record_online_count(server_ip: str, online: int) -> None:
     global online_history
     if not online_history.get(server_ip):
         online_history[server_ip] = []
-    online_history[server_ip].append(online)
-    peak_online = sorted(online_history[server_ip], reverse=True)[0]
+    online_history[server_ip].append({"online": online, "time": datetime.now()})
+    online_values = [item["online"] for item in online_history[server_ip]]
+    peak_online = max(online_values)
     logger.info(f"{server_ip} Online Count: {online} (Peak: {peak_online})")
 
 def fetch_server_status(server_ip: str) -> None:
@@ -66,22 +69,60 @@ def fetch_server_status(server_ip: str) -> None:
             time.sleep(retry_delay)
 
 def send_webhook(server_ip: str) -> None:
-    average_online = int(sum(online_history[server_ip]) / len(online_history[server_ip]))
-    peak_online = sorted(online_history[server_ip], reverse=True)[0]
+    online_values = [item["online"] for item in online_history[server_ip]]
+    average_online = sum(online_values) / len(online_values)
+    peak_online = max(online_values)
 
     webhook_url = load_config()["webhook_url"]
     webhook = DiscordWebhook(url=webhook_url, username="Server Tracker")
 
+    buf = visualize_data(server_ip=server_ip)
+    webhook.add_file(file=buf, filename=f"{server_ip}.png")
     description = (
-        f"IP: `{server_ip}`\n"
+        f"> IP: `{server_ip}`\n"
         f"> Average Online: `{average_online}`\n"
         f"> Peak Online: `{peak_online}`\n"
     )
+
     embed = DiscordEmbed(title="Server Tracker", description=description, color=0x000000)
+    embed.set_image(url=f"attachment://{server_ip}.png")
     embed.set_footer(text=f"{server_ip}")
 
     webhook.add_embed(embed)
-    webhook.execute()
+
+    try:
+        webhook.execute()
+    except Exception as e:
+        logger.warning(f"Unexpected error while processing {server_ip}: {e}")
+    finally:
+        buf.close()
+
+def visualize_data(server_ip: str) -> io:
+    times = [item["time"] for item in online_history[server_ip]]
+    online_users = [item["online"] for item in online_history[server_ip]]
+
+    if len(times) > 48:
+        sample_rate = len(times) // 48
+        times_sampled = times[::sample_rate]
+        online_users_sampled = online_users[::sample_rate]
+    else:
+        times_sampled = times
+        online_users_sampled = online_users
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(times_sampled, online_users_sampled, linewidth=2, color='red', marker='o', markersize=4)
+    plt.title(f"{server_ip}")
+    plt.xlabel("Hour")
+    plt.ylabel("Online Count")
+    plt.grid(True)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    plt.close()
+    return buf
 
 def clear_online_history() -> None:
     global online_history
@@ -98,7 +139,7 @@ def start_tracking_loop() -> None:
 def daily_report_loop() -> None:
     while True:
         logger.info("Checking if it's time to send report...")
-        current_time = datetime.datetime.now()
+        current_time = datetime.now()
         if current_time.hour == 0 and current_time.minute == 0:
             logger.info("Sending daily server report...")
             server_ips = load_config()["server_ips"]
