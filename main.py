@@ -8,6 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import urlopen, Request
 
 import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
 from discord_webhook import DiscordWebhook, DiscordEmbed
 
 from config import load_config
@@ -87,6 +88,7 @@ def send_webhook(server_ip: str) -> None:
     embed = DiscordEmbed(title="Server Tracker", description=description, color=0x000000)
     embed.set_image(url=f"attachment://{server_ip}.png")
     embed.set_footer(text=f"{server_ip}")
+    embed.set_timestamp()
 
     webhook.add_embed(embed)
 
@@ -109,13 +111,19 @@ def visualize_data(server_ip: str) -> io:
         times_sampled = times
         online_users_sampled = online_users
 
-    plt.figure(figsize=(12, 6))
-    plt.plot(times_sampled, online_users_sampled, linewidth=2, color='red', marker='o', markersize=4)
-    plt.title(f"{server_ip}")
-    plt.xlabel("Hour")
-    plt.ylabel("Online Count")
-    plt.grid(True)
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(times_sampled, online_users_sampled, linewidth=2, color='red', marker='o', markersize=4)
+    ax.fill_between(times_sampled, online_users_sampled, color='red', alpha=0.25)
+
+    ax.set_title(f"{server_ip}")
+    ax.set_xlabel("Hour")
+    ax.set_ylabel("Online Count")
+    ax.grid(True)
+
+    ax.xaxis.set_major_formatter(DateFormatter("%H:%M"))
     plt.xticks(rotation=45)
+
+    plt.margins(0)
     plt.tight_layout()
 
     buf = io.BytesIO()
