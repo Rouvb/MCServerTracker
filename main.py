@@ -112,7 +112,7 @@ def visualize_data(server_ip: str) -> io:
         online_users_sampled = online_users
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    ax.plot(times_sampled, online_users_sampled, linewidth=2, color='red', marker='o', markersize=4)
+    ax.plot(times_sampled, online_users_sampled, linewidth=2, color='red')
     ax.fill_between(times_sampled, online_users_sampled, color='red', alpha=0.25)
 
     ax.set_title(f"{server_ip}")
