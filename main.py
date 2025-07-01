@@ -71,7 +71,7 @@ def fetch_server_status(server_ip: str) -> None:
 
 def send_webhook(server_ip: str) -> None:
     online_values = [item["online"] for item in online_history[server_ip]]
-    average_online = sum(online_values) / len(online_values)
+    average_online = int(sum(online_values) / len(online_values))
     peak_online = max(online_values)
 
     webhook_url = load_config()["webhook_url"]
