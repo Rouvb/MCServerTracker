@@ -1,15 +1,13 @@
 import io
 from datetime import datetime
-import json
 import logging
 import threading
 import time
-from urllib.error import HTTPError, URLError
-from urllib.request import urlopen, Request
 
 import matplotlib.pyplot as plt
 from matplotlib.dates import DateFormatter
 from discord_webhook import DiscordWebhook, DiscordEmbed
+from mcstatus import JavaServer
 
 from config import load_config
 
@@ -37,31 +35,18 @@ def record_online_count(server_ip: str, online: int) -> None:
     logger.info(f"{server_ip} Online Count: {online} (Peak: {peak_online})")
 
 def fetch_server_status(server_ip: str) -> None:
-    # Get server data from mcsrvstat.us api
-    # To do: add error handler
     logger.info(f"Fetching server data for {server_ip}...")
-    url = f"https://api.mcsrvstat.us/3/{server_ip}"
-    request = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
 
     max_retries = 3
     retry_delay = 3
 
     for attempt in range(1, max_retries + 1):
         try:
-            response = urlopen(request)
-            json_data = json.load(response)
-            current_online = json_data["players"]["online"]
+            status = JavaServer.lookup(server_ip).status()
+            current_online = status.players.online
             record_online_count(server_ip=server_ip, online=current_online)
             return
 
-        except HTTPError as e:
-            logger.warning(f"HTTP Error {e.code} from {url}: {e.reason}")
-        except URLError as e:
-            logger.warning(f"URL Error from {url}: {e.reason}")
-        except KeyError as e:
-            logger.warning(f"Missing key in JSON: {e}")
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON Decode Error: {e}")
         except Exception as e:
             logger.exception(f"Unexpected error while processing {server_ip}: {e}")
 
